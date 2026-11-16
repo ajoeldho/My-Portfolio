@@ -336,7 +336,11 @@
     (D.skills || []).forEach(function (g) { (g.items || []).forEach(function (t) { if (items.indexOf(t) < 0) items.push(t); }); });
     if (!items.length) return;
     function row() { return el("ul", {}, items.map(function (t) { return el("li", { text: t }); })); }
-    document.getElementById("top").after(el("div", { class: "marquee", "aria-hidden": "true" }, el("div", { class: "marquee-track" }, row(), row())));
+    var track = el("div", { class: "marquee-track" }, row(), row());
+    document.getElementById("top").after(el("div", { class: "marquee", "aria-hidden": "true" }, track));
+    // Constant reading speed in pixels per second, however many skills are listed. Lower = slower.
+    var SPEED = 55;
+    track.style.animationDuration = Math.max(20, track.scrollWidth / 2 / SPEED) + "s";
   }
 
   /* ---------- motion & pointer effects (all skipped when the visitor prefers reduced motion) ---------- */
