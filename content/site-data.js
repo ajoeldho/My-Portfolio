@@ -24,6 +24,9 @@ window.SITE = {
   /* Profile photo. Replace the file or point to a new one. Square images work best. */
   photo: "assets/images/profile.jpg",
 
+  /* Up to 4 small tags that float around your photo. Remove all to hide them. */
+  heroTags: ["Unity", "C#", "Kotlin", "AI"],
+
   /* Resume download button. Put a PDF in assets/resume/ and write its path, e.g. "assets/resume/Ajo_Eldho_Baby.pdf".
      Empty = button hidden. */
   resume: "",

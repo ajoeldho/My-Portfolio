@@ -102,36 +102,6 @@
   }
 
   /* ---------- hero ---------- */
-  function gauge() {
-    var size = 320, c = size / 2, r = 146;
-    var root = svg("svg", { viewBox: "0 0 " + size + " " + size, class: "gauge", "aria-hidden": "true" });
-    // 270° sweep starting bottom-left (135°) going clockwise
-    var TICKS = 40;
-    for (var i = 0; i <= TICKS; i++) {
-      var a = (135 + (270 * i) / TICKS) * Math.PI / 180;
-      var major = i % 4 === 0;
-      var r1 = r - (major ? 14 : 8);
-      root.appendChild(svg("line", {
-        x1: c + r1 * Math.cos(a), y1: c + r1 * Math.sin(a),
-        x2: c + r * Math.cos(a), y2: c + r * Math.sin(a),
-        class: major ? "tick major" : "tick",
-      }));
-    }
-    var rr = r + 9, circ = 2 * Math.PI * rr, sweep = circ * 0.75;
-    var frac = Math.min(1, YEARS / 10);
-    function arc(cls, len) {
-      return svg("circle", {
-        cx: c, cy: c, r: rr, class: cls, fill: "none",
-        "stroke-dasharray": len + " " + circ, transform: "rotate(135 " + c + " " + c + ")",
-      });
-    }
-    root.appendChild(arc("arc-track", sweep));
-    var val = arc("arc-value", reduceMotion ? sweep * frac : 0);
-    root.appendChild(val);
-    if (!reduceMotion) setTimeout(function () { val.setAttribute("stroke-dasharray", sweep * frac + " " + circ); }, 250);
-    return root;
-  }
-
   function renderHero() {
     var hero = document.getElementById("top");
     var c = D.contact || {};
@@ -146,14 +116,17 @@
         el("dd", { text: String(s.value).replace("{years}", YEARS) }));
     }));
 
-    var cluster = el("div", { class: "cluster" },
-      gauge(),
-      D.photo
-        ? el("img", { class: "portrait", src: D.photo, alt: "Portrait of " + D.name, width: "400", height: "400" })
-        : el("div", { class: "portrait portrait-empty", text: D.initials || "" }),
-      el("div", { class: "cluster-read" },
-        el("strong", { text: String(YEARS) }),
-        el("span", { text: "yrs experience" })));
+    var cluster = el("div", { class: "holo", id: "holo" },
+      el("span", { class: "orbit o1", "aria-hidden": "true" }, el("i", {})),
+      el("span", { class: "orbit o2", "aria-hidden": "true" }, el("i", {})),
+      el("div", { class: "holo-frame" },
+        D.photo
+          ? el("img", { class: "portrait", src: D.photo, alt: "Portrait of " + D.name, width: "400", height: "400" })
+          : el("div", { class: "portrait portrait-empty", text: D.initials || "" }),
+        el("span", { class: "scan", "aria-hidden": "true" })),
+      (D.heroTags || []).slice(0, 4).map(function (t, i) {
+        return el("span", { class: "float-tag t" + (i + 1), text: t });
+      }));
 
     append(hero, el("div", { class: "wrap hero-grid" },
       el("div", { class: "hero-copy" },
@@ -197,21 +170,35 @@
       }))));
   }
 
-  /* ---------- experience ---------- */
+  /* ---------- experience (timeline) ---------- */
+  var updateTimeline = function () {};
   function renderExperience() {
     if (!(D.experience || []).length) return;
     var s = document.getElementById("experience");
-    append(s, el("div", { class: "wrap" },
-      heading("experience", "Experience"),
-      el("ol", { class: "route" }, D.experience.map(function (x) {
-        return el("li", { class: "stop reveal" },
-          el("span", { class: "stop-dot", "aria-hidden": "true" }),
-          el("p", { class: "label", text: x.period || "" }),
-          el("h3", { text: x.title }),
-          el("p", { class: "company", text: x.company || "" }),
-          x.summary ? el("p", { class: "muted", text: x.summary }) : null,
-          (x.points || []).length ? el("ul", { class: "points" }, x.points.map(function (p) { return el("li", { text: p }); })) : null);
-      }))));
+    var fill = el("span", {});
+    var wrap = el("div", { class: "timeline" },
+      el("div", { class: "tl-line", "aria-hidden": "true" }, fill),
+      el("ol", { class: "tl-list" }, D.experience.map(function (x) {
+        return el("li", { class: "tl-item reveal" },
+          el("span", { class: "tl-dot", "aria-hidden": "true" }),
+          el("p", { class: "tl-when", text: x.period || "" }),
+          el("div", { class: "panel tl-card" },
+            el("h3", { text: x.title }),
+            el("p", { class: "company", text: x.company || "" }),
+            x.summary ? el("p", { class: "muted", text: x.summary }) : null,
+            (x.points || []).length ? el("ul", { class: "points" }, x.points.map(function (p) { return el("li", { text: p }); })) : null));
+      })));
+    append(s, el("div", { class: "wrap" }, heading("experience", "Experience", "The route so far."), wrap));
+
+    // The line fills and each stop lights up as you scroll past it.
+    updateTimeline = function () {
+      var top = wrap.getBoundingClientRect().top;
+      var reached = Math.max(0, Math.min(wrap.offsetHeight, window.innerHeight * 0.6 - top));
+      fill.style.height = reached + "px";
+      wrap.querySelectorAll(".tl-item").forEach(function (item) {
+        item.classList.toggle("lit", item.offsetTop + 14 <= reached);
+      });
+    };
   }
 
   /* ---------- projects ---------- */
@@ -316,6 +303,7 @@
         var node = document.getElementById(s.id);
         if (node.getBoundingClientRect().top <= window.innerHeight * 0.35) current = s.id;
       });
+      updateTimeline();
       links.forEach(function (a) {
         if (a.getAttribute("data-nav") === current) a.setAttribute("aria-current", "true");
         else a.removeAttribute("aria-current");
@@ -342,6 +330,150 @@
     nodes.forEach(function (n) { io.observe(n); });
   }
 
+  /* ---------- moving skills strip under the hero ---------- */
+  function renderMarquee() {
+    var items = [];
+    (D.skills || []).forEach(function (g) { (g.items || []).forEach(function (t) { if (items.indexOf(t) < 0) items.push(t); }); });
+    if (!items.length) return;
+    function row() { return el("ul", {}, items.map(function (t) { return el("li", { text: t }); })); }
+    document.getElementById("top").after(el("div", { class: "marquee", "aria-hidden": "true" }, el("div", { class: "marquee-track" }, row(), row())));
+  }
+
+  /* ---------- motion & pointer effects (all skipped when the visitor prefers reduced motion) ---------- */
+  function scramble(node) {
+    var final = node.textContent, pool = "ABCDEFGHIJKLMNOPQRSTUVWXYZ01<>/#", start = performance.now(), dur = 1200;
+    node.setAttribute("aria-label", final);
+    (function step(now) {
+      var t = Math.min(1, (now - start) / dur), shown = Math.floor(t * final.length), out = "";
+      for (var i = 0; i < final.length; i++) {
+        out += i < shown || final[i] === " " ? final[i] : pool[Math.floor(Math.random() * pool.length)];
+      }
+      node.textContent = out;
+      if (t < 1) requestAnimationFrame(step);
+    })(start);
+  }
+
+  function countUp() {
+    document.querySelectorAll(".readouts dd").forEach(function (dd) {
+      var m = /^(\d+)(.*)$/.exec(dd.textContent); if (!m) return;
+      var target = +m[1], start = performance.now();
+      (function step(now) {
+        var t = Math.min(1, (now - start) / 1400), eased = 1 - Math.pow(1 - t, 3);
+        dd.textContent = Math.round(target * eased) + m[2];
+        if (t < 1) requestAnimationFrame(step);
+      })(start);
+    });
+  }
+
+  function particles() {
+    var hero = document.getElementById("top");
+    var cv = el("canvas", { class: "fx", "aria-hidden": "true" });
+    hero.prepend(cv);
+    var ctx = cv.getContext("2d"), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var w = 0, h = 0, pts = [], mouse = { x: -9999, y: -9999 }, visible = true;
+    function size() {
+      w = hero.clientWidth; h = hero.clientHeight;
+      cv.width = w * dpr; cv.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var n = Math.round(Math.min(90, (w * h) / 15000));
+      pts = [];
+      for (var i = 0; i < n; i++) {
+        pts.push({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.35, vy: (Math.random() - 0.5) * 0.35 });
+      }
+    }
+    hero.addEventListener("pointermove", function (e) {
+      var r = hero.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
+    });
+    hero.addEventListener("pointerleave", function () { mouse.x = mouse.y = -9999; });
+    window.addEventListener("resize", size);
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (e) { visible = e[0].isIntersecting; }).observe(hero);
+    }
+    function link(a, b, max, rgb) {
+      var dx = a.x - b.x, dy = a.y - b.y, d = Math.sqrt(dx * dx + dy * dy);
+      if (d > max) return;
+      ctx.strokeStyle = "rgba(" + rgb + "," + (1 - d / max) * 0.45 + ")";
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    function frame() {
+      requestAnimationFrame(frame);
+      if (!visible || document.hidden) return;
+      ctx.clearRect(0, 0, w, h);
+      ctx.lineWidth = 1;
+      for (var i = 0; i < pts.length; i++) {
+        var p = pts[i];
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0 || p.x > w) p.vx *= -1;
+        if (p.y < 0 || p.y > h) p.vy *= -1;
+        ctx.fillStyle = "rgba(152,164,179,.55)";
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.4, 0, 6.283); ctx.fill();
+        for (var j = i + 1; j < pts.length; j++) link(p, pts[j], 110, "76,214,227");
+        link(p, mouse, 190, "255,178,36");
+      }
+    }
+    size(); frame();
+  }
+
+  function pointerEffects() {
+    // trailing ring that follows the pointer and grows over clickable things
+    var ring = el("div", { class: "cursor-ring", "aria-hidden": "true" });
+    document.body.appendChild(ring);
+    var tx = -100, ty = -100, x = -100, y = -100;
+    document.addEventListener("pointermove", function (e) {
+      tx = e.clientX; ty = e.clientY;
+      ring.classList.add("on");
+      ring.classList.toggle("big", !!e.target.closest("a, button, .proj"));
+      // spotlight that follows the pointer across panels
+      var panel = e.target.closest(".panel");
+      if (panel) {
+        var r = panel.getBoundingClientRect();
+        panel.style.setProperty("--mx", e.clientX - r.left + "px");
+        panel.style.setProperty("--my", e.clientY - r.top + "px");
+      }
+    });
+    document.addEventListener("pointerleave", function () { ring.classList.remove("on"); });
+    (function follow() {
+      x += (tx - x) * 0.18; y += (ty - y) * 0.18;
+      ring.style.transform = "translate(" + x + "px," + y + "px)";
+      requestAnimationFrame(follow);
+    })();
+
+    // project cards tilt toward the pointer
+    document.querySelectorAll(".proj").forEach(function (card) {
+      card.addEventListener("pointermove", function (e) {
+        var r = card.getBoundingClientRect();
+        var rx = ((e.clientY - r.top) / r.height - 0.5) * -7, ry = ((e.clientX - r.left) / r.width - 0.5) * 7;
+        card.style.transform = "perspective(900px) rotateX(" + rx + "deg) rotateY(" + ry + "deg) translateY(-4px)";
+      });
+      card.addEventListener("pointerleave", function () { card.style.transform = ""; });
+    });
+
+    // buttons pull slightly toward the pointer
+    document.querySelectorAll(".btn").forEach(function (btn) {
+      btn.addEventListener("pointermove", function (e) {
+        var r = btn.getBoundingClientRect();
+        btn.style.transform = "translate(" + (e.clientX - r.left - r.width / 2) * 0.18 + "px," + (e.clientY - r.top - r.height / 2) * 0.3 + "px)";
+      });
+      btn.addEventListener("pointerleave", function () { btn.style.transform = ""; });
+    });
+
+    // portrait leans with the pointer
+    var hero = document.getElementById("top"), holo = document.getElementById("holo");
+    hero.addEventListener("pointermove", function (e) {
+      var nx = e.clientX / window.innerWidth - 0.5, ny = e.clientY / window.innerHeight - 0.5;
+      holo.style.transform = "perspective(900px) rotateY(" + nx * 14 + "deg) rotateX(" + ny * -14 + "deg)";
+    });
+    hero.addEventListener("pointerleave", function () { holo.style.transform = ""; });
+  }
+
+  function setupEffects() {
+    if (reduceMotion) return;
+    scramble(document.querySelector(".hero h1"));
+    countUp();
+    particles();
+    if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) pointerEffects();
+  }
+
   /* ---------- go ---------- */
   document.title = D.name + (D.role ? " — " + D.role : "");
   ["about", "skills", "experience", "projects", "education", "contact"].forEach(function (id) {
@@ -350,6 +482,7 @@
   });
   renderTopbar();
   renderHero();
+  renderMarquee();
   renderAbout();
   renderSkills();
   renderExperience();
@@ -359,4 +492,5 @@
   renderFooter();
   setupScroll();
   setupReveal();
+  setupEffects();
 })();
